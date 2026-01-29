@@ -1,0 +1,2312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xtreme Tactics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --accent: #6366f1;
+            --panel: #16161a;
+        }
+        body {
+            background-color: var(--bg);
+            color: #e2e8f0;
+            font-family: 'Space Grotesk', sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .grid-bg {
+            background-image: radial-gradient(circle at 2px 2px, #2d2d35 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+        .hex-unit {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.3));
+        }
+        .hex-unit:hover {
+            transform: translateY(-5px) scale(1.05);
+            filter: drop-shadow(0 0 15px rgba(99, 102, 241, 0.6));
+        }
+        .glass {
+            background: rgba(22, 22, 26, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .btn-action {
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-action:hover:not(:disabled) {
+            background: var(--accent);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+            transform: translateY(-2px);
+        }
+        .btn-action:active { transform: translateY(0); }
+        .phase-indicator {
+            transition: all 0.5s ease;
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .floating { animation: float 3s ease-in-out infinite; }
+        .pulse-glow {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(99, 102, 241, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.8); }
+        }
+        .stat-bar { height: 4px; border-radius: 2px; background: #333; overflow: hidden; }
+        .stat-fill { height: 100%; transition: width 0.5s ease-out; }
+
+        @keyframes pixel-idle {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-2px); }
+            100% { transform: translateY(0px); }
+        }
+        .pixel-char {
+            animation: pixel-idle 2s ease-in-out infinite;
+        }
+    </style>
+    <!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script>
+    const firebaseConfig = {
+  apiKey: "AIzaSyAsTmK7d100WxyDyK_58ci24zXjMYCR7VM",
+  authDomain: "the-rogues.firebaseapp.com",
+  databaseURL: "https://the-rogues-default-rtdb.firebaseio.com",
+  projectId: "the-rogues",
+  storageBucket: "the-rogues.firebasestorage.app",
+  messagingSenderId: "1012373956484",
+  appId: "1:1012373956484:web:3008f765891c73dd7c1fd1",
+  measurementId: "G-JEGMSTP1YR"
+};
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+</script>
+</head>
+<body class="h-screen w-screen grid-bg flex items-center justify-center p-4">
+
+    <!-- Audio Manager Script -->
+    <script>
+        const Sound = {
+            ctx: null,
+            init() { if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+            play(type) {
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                const now = this.ctx.currentTime;
+                
+                if(type === 'click') {
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.exponentialRampToValueAtTime(110, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                    osc.start(); osc.stop(now + 0.1);
+                } else if(type === 'phase') {
+                    osc.type = 'triangle'; osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.linearRampToValueAtTime(880, now + 0.3);
+                    gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(); osc.stop(now + 0.3);
+                } else if(type === 'attack') {
+                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+                    gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(); osc.stop(now + 0.2);
+                } else if(type === 'buff') {
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.4);
+                    gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(); osc.stop(now + 0.4);
+                } else if(type === 'revive') {
+                    // Angelic ascending sound
+                    osc.type = 'sine'; 
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.exponentialRampToValueAtTime(880, now + 0.2);
+                    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.5);
+                    gain.gain.setValueAtTime(0.08, now); 
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                    osc.start(); osc.stop(now + 0.5);
+                } else if(type === 'damage_player') {
+                    // Player taking damage - lower pitch
+                    osc.type = 'sawtooth'; 
+                    osc.frequency.setValueAtTime(100, now);
+                    osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+                    gain.gain.setValueAtTime(0.12, now); 
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(); osc.stop(now + 0.3);
+                } else if(type === 'damage_enemy') {
+                    // Enemy taking damage - higher pitch
+                    osc.type = 'square'; 
+                    osc.frequency.setValueAtTime(200, now);
+                    osc.frequency.exponentialRampToValueAtTime(80, now + 0.2);
+                    gain.gain.setValueAtTime(0.1, now); 
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(); osc.stop(now + 0.2);
+                } else if(type === 'heal') {
+                    // Healing sound - warm and gentle
+                    osc.type = 'sine'; 
+                    osc.frequency.setValueAtTime(520, now);
+                    osc.frequency.exponentialRampToValueAtTime(780, now + 0.4);
+                    gain.gain.setValueAtTime(0.06, now); 
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(); osc.stop(now + 0.4);
+                } else if(type === 'shield') {
+                    // Shield sound - metallic
+                    osc.type = 'triangle'; 
+                    osc.frequency.setValueAtTime(330, now);
+                    gain.gain.setValueAtTime(0.08, now); 
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(); osc.stop(now + 0.3);
+                }
+            }
+        };
+    </script>
+
+    <!-- Main Menu Overlay -->
+    <div id="menuOverlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center glass overflow-hidden">
+        <!-- Animated Background -->
+        <div class="absolute inset-0 opacity-20">
+            <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500 rounded-full blur-3xl animate-pulse"></div>
+            <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
+        </div>
+        
+        <!-- Content -->
+        <div class="relative z-10 text-center">
+            <div class="floating mb-8">
+                <div class="text-9xl mb-4">⚔️</div>
+            </div>
+            <h1 class="text-8xl font-bold tracking-tighter mb-4 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                XTREME TACTICS
+            </h1>
+            <p class="text-slate-400 mb-16 tracking-[0.3em] mono uppercase text-sm">
+                Strategic Synergy Engine v1.0
+            </p>
+            
+            <div class="flex flex-col gap-4">
+    <button onclick="showTeamBuilder()" class="btn-action glass px-16 py-6 rounded-full text-2xl font-bold border-2 border-indigo-500 text-indigo-400 hover:text-white relative overflow-hidden group">
+        <span class="relative z-10">🤖 VS AI MODE</span>
+        <div class="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+    </button>
+    
+    <button onclick="showMultiplayerLobby()" class="btn-action glass px-16 py-6 rounded-full text-2xl font-bold border-2 border-purple-500 text-purple-400 hover:text-white relative overflow-hidden group">
+        <span class="relative z-10">👥 ONLINE MULTIPLAYER</span>
+        <div class="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+    </button>
+</div>
+            
+            <div class="max-w-2xl mx-auto text-center text-slate-500 text-base leading-relaxed px-6">
+                <div class="glass p-6 rounded-2xl border border-white/10">
+                    <p class="mb-3">🎯 Build a team of 3 unique roles</p>
+                    <p class="mb-3">⚡ Plan strategic attacks and support moves</p>
+                    <p>🏆 Defeat the enemy AI to claim victory</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multiplayer Lobby -->
+<div id="multiplayerLobby" class="hidden fixed inset-0 z-50 glass p-8 overflow-y-auto">
+    <div class="max-w-4xl mx-auto">
+        <button onclick="backToMainMenu()" class="glass px-6 py-3 rounded-lg mb-6 border border-white/20 hover:border-white/40">
+            ← BACK
+        </button>
+        
+        <h2 class="text-6xl font-bold mb-8 text-center bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+            MULTIPLAYER MODE
+        </h2>
+        
+        <!-- Room Code Display -->
+        <div id="roomCodeDisplay" class="hidden glass p-6 rounded-xl mb-6 text-center">
+            <div class="text-sm mono text-slate-400 mb-2">ROOM CODE</div>
+            <div id="roomCodeText" class="text-4xl font-bold mono text-indigo-400 mb-4">----</div>
+            <div class="text-sm text-slate-500">Share this code with your opponent</div>
+            <div id="waitingText" class="text-sm text-yellow-400 mt-4 animate-pulse">Waiting for opponent...</div>
+        </div>
+        
+        <!-- Create or Join -->
+        <div id="lobbyOptions" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <button onclick="createRoom()" class="btn-action glass p-8 rounded-xl border-2 border-indigo-500 hover:scale-105 transition-all">
+                <div class="text-5xl mb-4">🎮</div>
+                <div class="text-2xl font-bold mb-2">CREATE ROOM</div>
+                <div class="text-sm text-slate-400">Start a new game</div>
+            </button>
+            
+            <button onclick="showJoinInput()" class="btn-action glass p-8 rounded-xl border-2 border-purple-500 hover:scale-105 transition-all">
+                <div class="text-5xl mb-4">🔗</div>
+                <div class="text-2xl font-bold mb-2">JOIN ROOM</div>
+                <div class="text-sm text-slate-400">Enter a room code</div>
+            </button>
+        </div>
+        
+        <!-- Join Input -->
+        <div id="joinInput" class="hidden glass p-6 rounded-xl text-center">
+            <input type="text" id="roomCodeInput" placeholder="Enter Room Code" 
+                   class="glass px-6 py-3 rounded-lg text-center text-2xl mono uppercase border-2 border-white/20 focus:border-indigo-500 outline-none mb-4 w-64"
+                   maxlength="4">
+            <br>
+            <button onclick="joinRoom()" class="btn-action glass px-8 py-3 rounded-lg border-2 border-indigo-500">
+                JOIN GAME
+            </button>
+        </div>
+        
+        <!-- Team Selection in Lobby -->
+        <div id="multiplayerTeamSelect" class="hidden">
+            <h3 class="text-3xl font-bold mb-4 text-center">SELECT YOUR SQUAD</h3>
+            <div id="mpRoleGrid" class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                <!-- Will be populated -->
+            </div>
+            <div class="glass p-6 rounded-xl mb-6">
+                <div class="text-lg mono text-center mb-3">Your Squad <span id="mpSquadCount">(0/3)</span></div>
+                <div id="mpSelectedSquad" class="flex gap-4 justify-center min-h-[100px] items-center">
+                    <div class="text-slate-600 text-sm">No units selected</div>
+                </div>
+            </div>
+            <div class="text-center">
+                <button id="mpReadyBtn" onclick="markReady()" disabled class="btn-action glass px-12 py-4 rounded-lg border-2 border-indigo-500 opacity-50">
+                    READY UP
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Team Builder Overlay -->
+    <div id="teamBuilder" class="hidden fixed inset-0 z-50 glass p-8 overflow-y-auto">
+        <div class="flex flex-col items-center justify-start min-h-full py-12">
+        <div class="max-w-6xl w-full">
+            <h2 class="text-6xl font-bold mb-3 text-center bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                ASSEMBLE YOUR SQUAD
+            </h2>
+            <p class="text-slate-400 mb-10 mono text-sm text-center tracking-widest">SELECT 3 ROLES FOR COMBAT</p>
+            
+            <div id="roleGrid" class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+                <!-- Roles will be generated here -->
+            </div>
+
+            <div class="glass p-8 rounded-3xl mb-8 w-full border-2 border-indigo-500/30">
+                <div class="text-lg mono text-slate-300 uppercase mb-4 text-center">
+                    Your Squad <span id="squadCount" class="text-indigo-400 font-bold text-2xl">(0/3)</span>
+                </div>
+                <div id="selectedSquad" class="flex gap-6 justify-center min-h-[140px] items-center">
+                    <div class="text-slate-600 text-sm">No units selected yet...</div>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <button id="startBattleBtn" onclick="startGameWithTeam()" disabled class="btn-action glass px-16 py-5 rounded-full text-2xl font-bold border-2 border-indigo-500 text-indigo-400 hover:text-white opacity-50 relative overflow-hidden group" style="pointer-events: none;">
+                    <span class="relative z-10">⚔️ START BATTLE</span>
+                    <div class="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+    </div>
+    
+    <!-- Victory/Defeat Screen -->
+    <div id="endScreen" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center glass">
+        <div class="text-center">
+            <div id="endIcon" class="text-9xl mb-6">🏆</div>
+            <h2 id="endTitle" class="text-7xl font-bold mb-4 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">VICTORY</h2>
+            <p id="endMessage" class="text-slate-400 mb-8 text-xl">All enemies eliminated!</p>
+            <div class="glass p-6 rounded-2xl mb-8 max-w-md">
+                <div class="text-sm mono text-slate-500 uppercase mb-3">Battle Statistics</div>
+                <div id="battleStats" class="text-left text-sm space-y-2">
+                    <!-- Stats here -->
+                </div>
+            </div>
+            <button onclick="location.reload()" class="btn-action glass px-12 py-4 rounded-full text-xl font-bold border-2 border-indigo-500 text-indigo-400 hover:text-white">
+                NEW BATTLE
+            </button>
+        </div>
+    </div>
+
+    <div class="pointer-events-auto glass p-4 rounded-xl w-80 max-h-96 overflow-y-auto border-2 border-indigo-500/30">
+            <div class="flex items-center justify-between mb-3">
+                <div class="text-xs mono text-slate-400 uppercase">Action Queue</div>
+                <div class="text-xs mono text-indigo-400" id="queueCount">0 Actions</div>
+            </div>
+            <div id="actionQueue" class="flex flex-col gap-2">
+                <div class="text-xs text-slate-600 text-center py-4">No actions planned</div>
+            </div>
+        </div>
+    <!-- UI Overlay: Top Bar -->
+    <div id="gameUI" class="hidden fixed top-0 left-0 w-full p-6 flex justify-between items-start pointer-events-none z-40">
+        <div class="pointer-events-auto glass p-4 rounded-xl flex flex-col gap-1 w-48">
+            <div class="text-[10px] mono text-slate-500 uppercase">Current Phase</div>
+            <div id="phaseText" class="text-2xl font-bold text-indigo-400 uppercase tracking-widest drop-shadow-lg">PLANNING</div>
+            <div id="phaseSubtext" class="text-[9px] text-slate-500 mono">Prepare your actions</div>
+            <div class="w-full bg-slate-800 h-1 mt-1 rounded-full overflow-hidden">
+                <div id="phaseProgress" class="h-full bg-indigo-500" style="width: 33%"></div>
+            </div>
+        </div>
+        
+        <div class="pointer-events-auto flex gap-4">
+            <div class="glass p-4 rounded-xl text-center">
+                <div class="text-[10px] mono text-slate-500 uppercase">Round</div>
+                <div id="roundDisplay" class="text-2xl font-bold">01</div>
+            </div>
+        </div>
+    </div>
+
+<!-- UI Overlay: Unit Selection -->
+    <div id="unitPanel" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 pointer-events-auto z-40 transition-all duration-300 w-full px-4">
+        <!-- Expanded View -->
+        <div id="panelExpanded" class="glass rounded-2xl p-6 flex flex-col gap-4 w-full max-w-6xl mx-auto">
+            <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                <div id="unitInfo">
+                    <span id="unitName" class="text-xl font-bold uppercase tracking-tight">Vanguard Unit</span>
+                    <span id="unitClass" class="ml-3 text-xs mono text-slate-400 bg-white/5 px-2 py-1 rounded">DEFENDER</span>
+                </div>
+                <div class="flex gap-4 items-center">
+                    <div id="unitStats" class="flex gap-4 items-center">
+                        <div class="w-24">
+                            <div class="flex justify-between text-[10px] mb-1"><span>HP</span><span id="hpText">100/100</span></div>
+                            <div class="stat-bar"><div id="hpFill" class="stat-fill bg-green-500" style="width: 100%"></div></div>
+                        </div>
+                        <div class="w-24">
+                            <div class="flex justify-between text-[10px] mb-1"><span>STAMINA</span><span id="apText">3/3</span></div>
+                            <div class="stat-bar"><div id="apFill" class="stat-fill bg-indigo-500" style="width: 100%"></div></div>
+                        </div>
+                    </div>
+                    <button onclick="game.togglePanel()" class="glass p-2 rounded-lg border border-white/10 hover:border-red-500 transition-all">
+                        <span class="text-xl">✕</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-4">
+                <!-- Unit Switcher -->
+                <div>
+                    <div class="text-[10px] mono text-slate-500 uppercase mb-2">Your Units (Click to Switch)</div>
+                    <div id="unitSwitcher" class="flex gap-2">
+                        <!-- Unit buttons generated here -->
+                    </div>
+                </div>
+                
+                <!-- Ability Selection -->
+                <div>
+                    <div class="text-[10px] mono text-slate-500 uppercase mb-2">Available Abilities (Select Target)</div>
+                    <div id="abilitySelection" class="flex gap-3 flex-wrap">
+                        <!-- Dynamic Abilities -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-2">
+<button id="waitBtn" onclick="game.cycleUnit()" class="btn-action bg-white/5 px-6 py-2 rounded-lg text-xs mono font-bold uppercase border border-white/10">◄ Cycle Unit ►</button>
+                <button id="endPhaseBtn" onclick="game.nextPhase()" class="btn-action bg-indigo-600/20 px-8 py-3 rounded-lg text-sm mono font-bold uppercase border-2 border-indigo-500 text-indigo-300 hover:bg-indigo-600/40 pulse-glow">
+                    ⚔️ START BATTLE ⚔️
+                </button>
+            </div>
+        </div>
+
+        <!-- Collapsed View (Mini) -->
+        <div id="panelCollapsed" class="hidden glass rounded-2xl p-3 flex gap-3 items-center cursor-pointer hover:scale-105 transition-all" onclick="game.togglePanel()">
+            <div class="text-sm mono text-slate-400">YOUR UNITS</div>
+            <div id="miniUnitDisplay" class="flex gap-2">
+                <!-- Mini unit indicators -->
+            </div>
+            <div class="text-indigo-400 text-sm">▲ EXPAND</div>
+        </div>
+    </div>
+
+    <!-- Game Canvas Wrapper -->
+    <div id="stage" class="relative w-full h-full flex items-center justify-center overflow-hidden">
+        <svg id="gameBoard" class="w-full h-full max-w-5xl max-h-[700px]" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet">
+            <!-- Game elements injected here -->
+            <g id="gridGroup"></g>
+            <g id="effectGroup"></g>
+            <g id="unitGroup"></g>
+        </svg>
+    </div>
+
+    <!-- Notification Engine -->
+    <div id="notif" class="fixed top-24 left-1/2 -translate-x-1/2 pointer-events-none z-50 flex flex-col items-center"></div>
+
+    <script>
+const ROLES = {
+    'Catalyst': { 
+        letter: 'C',
+        color: '#8b5cf6',
+        row: 'back',
+        desc: 'BACK ROW: Status master. Applies POISON on attacks. Healing +50% stronger.', 
+        mod: (u) => { u.statusMod *= 1.5; u.healMod = 1.5; u.appliesPoison = true; }
+    },
+    'Vanguard': { 
+        letter: 'V',
+        color: '#3b82f6',
+        row: 'front',
+        desc: 'FRONT ROW: Defensive wall. Gains 20 Shield at start of each Action Phase.', 
+        mod: (u) => { u.shieldOnAction = 20; }
+    },
+    'Berserker': {
+        letter: 'B',
+        color: '#dc2626',
+        row: 'front',
+        desc: 'FRONT ROW: Glass cannon. Applies BLEED on attacks. +60% damage, +30% damage taken.',
+        mod: (u) => { u.dmgMod *= 1.6; u.damageTakenMod = 1.3; u.appliesBleed = true; }
+    },
+    'Medic': {
+        letter: 'M',
+        color: '#22c55e',
+        row: 'back',
+        desc: 'BACK ROW: Support healer. Heals apply REGEN. +80% healing. +1 stamina.',
+        mod: (u) => { u.healMod = 1.8; u.maxAp += 1; u.ap += 1; u.appliesRegen = true; }
+    },
+    'Tactician': {
+        letter: 'X',
+        color: '#06b6d4',
+        row: 'back',
+        desc: 'BACK ROW: First strike specialist. Always acts first. +2 stamina.',
+        mod: (u) => { u.priorityBonus = 100; u.maxAp += 2; u.ap += 2; }
+    },
+    'Angel': {
+        letter: 'A',
+        color: '#fbbf24',
+        row: 'back',
+        desc: 'BACK ROW: Divine resurrector. Low damage but can revive fallen allies.',
+        mod: (u) => { u.dmgMod *= 0.7; u.maxAp += 1; u.ap += 1; }
+    }
+};
+
+        const ABILITIES = {
+    // ATTACKS
+    'Slash': { 
+        name: 'Thermal Slash', 
+        cost: 1, 
+        type: 'attack', 
+        power: 16, 
+        effect: 'bleed', 
+        icon: '⚔️', 
+        color: '#ef4444',
+        desc: 'Quick melee strike dealing 16 damage to an enemy'
+    },
+    'Blast': { 
+        name: 'Nova Blast', 
+        cost: 2, 
+        type: 'attack', 
+        power: 32, 
+        effect: 'burn', 
+        icon: '🔥', 
+        color: '#f97316',
+        desc: 'Powerful explosion dealing 32 damage to an enemy'
+    },
+    'Pierce': { 
+        name: 'Shadow Pierce', 
+        cost: 2, 
+        type: 'attack', 
+        power: 28, 
+        effect: 'poison', 
+        icon: '🗡️', 
+        color: '#8b5cf6',
+        desc: 'Precise strike dealing 28 damage to an enemy'
+    },
+    'Smite': { 
+        name: 'Holy Smite', 
+        cost: 3, 
+        type: 'attack', 
+        power: 52, 
+        effect: 'stun', 
+        icon: '⚡', 
+        color: '#eab308',
+        desc: 'Devastating attack dealing 52 damage to an enemy'
+    },
+    'Drain': { 
+        name: 'Life Drain', 
+        cost: 2, 
+        type: 'attack', 
+        power: 20, 
+        effect: 'lifesteal', 
+        icon: '🩸', 
+        color: '#dc2626',
+        desc: 'Attack for 20 damage and restore HP to yourself'
+    },
+    
+    // HEALS
+    'Mend': { 
+        name: 'Nano Mend', 
+        cost: 1, 
+        type: 'heal', 
+        power: 30, 
+        effect: 'regen', 
+        icon: '💉', 
+        color: '#22c55e',
+        desc: 'Restore 30 HP to an ally'
+    },
+    'Restore': { 
+        name: 'Full Restore', 
+        cost: 3, 
+        type: 'heal', 
+        power: 60, 
+        effect: 'cleanse', 
+        icon: '✨', 
+        color: '#10b981',
+        desc: 'Restore 60 HP to an ally'
+    },
+    
+    // SUPPORT
+    'Wall': { 
+        name: 'Aegis Wall', 
+        cost: 2, 
+        type: 'shield', 
+        power: 35, 
+        effect: 'sturdy', 
+        icon: '🛡️', 
+        color: '#3b82f6',
+        desc: 'Grant 35 Shield to an ally'
+    },
+    'Boost': { 
+        name: 'Power Boost', 
+        cost: 2, 
+        type: 'buff', 
+        power: 0, 
+        effect: 'empower', 
+        icon: '💪', 
+        color: '#f59e0b',
+        desc: 'Increase ally damage by 30% for this turn'
+    },
+    'Fortify': { 
+        name: 'Iron Skin', 
+        cost: 1, 
+        type: 'buff', 
+        power: 0, 
+        effect: 'defense', 
+        icon: '🔰', 
+        color: '#64748b',
+        desc: 'Reduce damage taken by ally for this turn'
+    },
+    'Revive': { 
+        name: 'Divine Resurrection', 
+        cost: 4, 
+        type: 'revive', 
+        power: 50, 
+        effect: 'resurrect', 
+        icon: '👼', 
+        color: '#fbbf24',
+        desc: 'Revive a fallen ally with 50 HP (costs 4 stamina)'
+    }
+};
+
+        class Unit {
+            constructor(id, name, type, team, x, y, hp, ap) {
+                this.id = id;
+                this.name = name;
+                this.type = type;
+                this.team = team;
+                this.x = x;
+                this.y = y;
+                this.maxHp = hp;
+                this.hp = hp;
+                this.maxAp = ap;
+                this.ap = ap;
+                this.role = Object.keys(ROLES)[0];
+                this.abilities = team === 'player' ? ['Slash', 'Blast', 'Mend', 'Pierce'] : ['Slash', 'Drain'];
+                this.status = []; // {type: 'poison'|'burn'|'regen', duration: number, power: number}
+                this.statusIcons = [];
+                this.cooldowns = {}; // Track ability cooldowns
+                this.resetMods();
+                this.row = 'front'; // 'front' or 'back'
+                this.rowMod = 1.0;
+            }
+
+            resetMods() {
+    this.dmgMod = 1.0;
+    this.apCostMod = 0;
+    this.hasCounter = false;
+    this.statusMod = 1.0;
+    this.shieldOnAction = 0;
+    this.shield = 0;
+    this.damageTakenMod = 1.0;
+    this.healMod = 1.0;
+    this.priorityBonus = 0;
+    // Row modifiers
+                if(this.row === 'front') {
+                    this.rowMod = 1.2; // +20% damage dealt
+                    this.damageTakenMod = (this.damageTakenMod || 1.0) * 1.3; // +30% damage taken
+                } else {
+                    this.rowMod = 0.8; // -20% damage dealt
+                    this.damageTakenMod = (this.damageTakenMod || 1.0) * 0.8; // -20% damage taken
+                }
+    ROLES[this.role].mod(this);
+}
+
+            takeDamage(amt) {
+    amt = Math.round(amt * (this.damageTakenMod || 1.0));
+    if (this.shield > 0) {
+        const absorbed = Math.min(this.shield, amt);
+        this.shield -= absorbed;
+        amt -= absorbed;
+        this.spawnFloatingText(this.x, this.y - 50, `-${absorbed} SHIELD`, "cyan-400");
+        Sound.play('shield');
+    }
+    this.hp = Math.max(0, this.hp - amt);
+    
+    // Different sound based on team
+    if(amt > 0) {
+        Sound.play(this.team === 'player' ? 'damage_player' : 'damage_enemy');
+    }
+    
+    return amt;
+}
+
+spawnFloatingText(x, y, text, colorClass) {
+    game.spawnText(x, y, text, colorClass);
+}
+        }
+
+        // --- GAME ENGINE ---
+        const game = {
+            // Multiplayer variables
+            isMultiplayer: false,
+            isHost: false,
+            roomCode: null,
+            playerId: null,
+            opponentId: null,
+            roomRef: null,
+            
+            selectedRoles: [],
+            selectedAbility: null,
+            totalActions: 0,
+            totalDamage: 0,
+            totalHealing: 0,
+            playerTeam: [],
+            round: 1,
+            phase: 0, // 0:Plan, 1:Action, 2:Reaction
+            units: [],
+            selectedIndex: 0,
+            plannedActions: [],
+            gridSize: 40,
+            
+            init() {
+                this.units = [];
+                
+                // Create player team from selected roles
+                this.selectedRoles.forEach((roleName, i) => {
+                    const role = ROLES[roleName];
+                    
+                    // Position based on row
+                    let x = role.row === 'front' ? 220 : 150;
+                    let y = 200 + (i * 100);
+                    
+                    const unit = new Unit(
+                        `p${i+1}`, 
+                        `${roleName} ${i+1}`, 
+                        roleName.toUpperCase(), 
+                        'player', 
+                        x, 
+                        y, 
+                        100, 
+                        3
+                    );
+                    unit.role = roleName;
+                    unit.letter = role.letter;
+                    unit.color = role.color;
+                    unit.abilities = this.getAbilitiesForRole(roleName);
+                    unit.row = ROLES[roleName].row;
+                    unit.resetMods();
+                    this.units.push(unit);
+                });
+                
+                // Create enemy team (AI)
+                const enemyRoles = ['Berserker', 'Vanguard', 'Medic'];
+                
+                enemyRoles.forEach((roleName, i) => {
+                    const role = ROLES[roleName];
+                    
+                    // Position based on row
+                    let x = role.row === 'front' ? 580 : 650;
+                    let y = 200 + (i * 100);
+                    
+                    const unit = new Unit(
+                        `e${i+1}`, 
+                        `Enemy ${roleName}`, 
+                        roleName.toUpperCase(), 
+                        'enemy', 
+                        x, 
+                        y, 
+                        120, 
+                        3
+                    );
+                    unit.role = roleName;
+                    unit.letter = role.letter;
+                    unit.color = role.color;
+                    unit.abilities = ['Slash', 'Blast', 'Mend'];
+                    unit.row = ROLES[roleName].row;
+                    unit.resetMods();
+                    this.units.push(unit);
+                });
+                
+                this.render();
+                this.updateUI();
+            },
+
+            getAbilitiesForRole(roleName) {
+                // Give different abilities based on role
+                const abilityMap = {
+                    'Berserker': ['Slash', 'Blast', 'Drain'],
+                    'Vanguard': ['Slash', 'Wall', 'Fortify'],
+                    'Medic': ['Mend', 'Restore', 'Slash'],
+                    'Catalyst': ['Blast', 'Mend', 'Boost'],
+                    'Tactician': ['Pierce', 'Boost', 'Wall'],
+                    'Angel': ['Slash', 'Mend', 'Revive']
+                };
+                return abilityMap[roleName] || ['Slash', 'Mend', 'Wall'];
+            },
+
+            nextPhase() {
+                Sound.play('phase');
+                this.phase++;
+                if (this.phase > 2) {
+                    this.phase = 0;
+                    this.round++;
+                    this.units.forEach(u => {
+                        u.ap = u.maxAp;
+                        u.hasCountered = false;
+                        Object.keys(u.cooldowns).forEach(key => {
+                            u.cooldowns[key] = Math.max(0, u.cooldowns[key] - 1);
+                        });
+                        u.buffed = false;
+                        u.resetMods();
+                    });
+                }
+                
+                if (this.phase === 1) this.runActionPhase();
+                if (this.phase === 2) this.runReactionPhase();
+                
+                // Sync with Firebase if multiplayer
+                if(this.isMultiplayer && this.isHost) {
+                    game.roomRef.update({
+                        currentPhase: this.phase,
+                        round: this.round
+                    });
+                }
+                
+                this.updateUI();
+            },
+            async runActionPhase() {
+    this.notify("⚔️ ACTION PHASE COMMENCING", "indigo");
+    // Auto-collapse panel
+                const expanded = document.getElementById('panelExpanded');
+                const collapsed = document.getElementById('panelCollapsed');
+                if(!expanded.classList.contains('hidden')) {
+                    expanded.classList.add('hidden');
+                    collapsed.classList.remove('hidden');
+                    this.updateMiniDisplay();
+                }
+    
+    // Grant shields to Vanguard role users
+    this.units.forEach(u => {
+        if(u.shieldOnAction > 0 && u.hp > 0) {
+            u.shield += u.shieldOnAction;
+            this.spawnText(u.x, u.y - 40, `+${u.shieldOnAction} SHIELD`, "cyan-400");
+        }
+    });
+    
+// NPC AI Planning - SMARTER (only if not multiplayer)
+    if(!this.isMultiplayer) {
+        this.units.filter(u => u.team === 'enemy' && u.hp > 0).forEach(u => {
+            const playerUnits = this.units.filter(p => p.team === 'player' && p.hp > 0);
+            if (playerUnits.length === 0) return;
+            
+            const lowHp = u.hp < u.maxHp * 0.4;
+            const hasMend = u.abilities.includes('Mend');
+            const hasBlast = u.abilities.includes('Blast');
+            
+            if (lowHp && hasMend && u.ap >= 1) {
+                this.plannedActions.push({ source: u, target: u, ability: ABILITIES['Mend'] });
+                u.ap -= 1;
+            } else if (u.ap >= 2 && hasBlast) {
+                const weakest = playerUnits.sort((a, b) => a.hp - b.hp)[0];
+                this.plannedActions.push({ source: u, target: weakest, ability: ABILITIES['Blast'] });
+                u.ap -= 2;
+            } else if (u.ap >= 1) {
+                const target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
+                this.plannedActions.push({ source: u, target, ability: ABILITIES['Slash'] });
+                u.ap -= 1;
+            }
+        });
+    }
+
+    // Sort by priority (Tactician goes first)
+    this.plannedActions.sort((a, b) => (b.source.priorityBonus || 0) - (a.source.priorityBonus || 0));
+
+    for (let act of this.plannedActions) {
+        act.source.isActing = true;
+        this.render();
+        this.notify(`${act.source.name} is acting!`, act.source.team === 'player' ? 'indigo' : 'red');
+        await this.executeAction(act);
+        act.source.isActing = false;
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    this.plannedActions = [];
+    
+    // Check win/loss
+    const playersAlive = this.units.filter(u => u.team === 'player' && u.hp > 0).length;
+    const enemiesAlive = this.units.filter(u => u.team === 'enemy' && u.hp > 0).length;
+    
+    if(playersAlive === 0) {
+                        this.showEndScreen(false);
+                        return;
+                    }
+                    if(enemiesAlive === 0) {
+                        this.showEndScreen(true);
+                        return;
+                    }
+    
+    setTimeout(() => this.nextPhase(), 1000);
+},
+
+            async runReactionPhase() {
+                this.notify("⚡ REACTION PHASE: EFFECTS TRIGGER", "emerald");
+                
+                // Apply shields
+                this.units.forEach(u => {
+                    if(u.shieldOnAction > 0 && u.hp > 0) {
+                        u.shield += u.shieldOnAction;
+                        this.spawnText(u.x, u.y - 40, `+${u.shieldOnAction} SHIELD`, "cyan-400");
+                    }
+                });
+                
+                // Process status effects
+                for(let u of this.units) {
+                    if(u.hp <= 0) continue;
+                    
+                    for(let i = u.status.length - 1; i >= 0; i--) {
+                        const effect = u.status[i];
+                        
+                        if(effect.type === 'poison') {
+                            const dmg = Math.min(u.hp, 5);
+                            u.hp -= dmg;
+                            this.spawnText(u.x, u.y - 20, `-${dmg} POISON`, "purple-500");
+                            Sound.play('damage_player');
+                        } else if(effect.type === 'burn') {
+                            const dmg = Math.min(u.hp, 8);
+                            u.hp -= dmg;
+                            this.spawnText(u.x, u.y - 20, `-${dmg} BURN`, "orange-500");
+                            Sound.play('damage_player');
+                        } else if(effect.type === 'regen') {
+                            const heal = Math.min(u.maxHp - u.hp, 10);
+                            u.hp += heal;
+                            this.spawnText(u.x, u.y - 20, `+${heal} REGEN`, "green-400");
+                            Sound.play('heal');
+                        }
+                        
+                        effect.duration--;
+                        if(effect.duration <= 0) {
+                            u.status.splice(i, 1);
+                        }
+                        
+                        await new Promise(r => setTimeout(r, 400));
+                    }
+                }
+                
+                this.render();
+                setTimeout(() => this.nextPhase(), 1500);
+            },
+
+            async executeAction(act) {
+    const { source, target, ability } = act;
+    // Visual feedback
+    target.isBeingAttacked = true;
+    this.render();
+    await new Promise(r => setTimeout(r, 300));
+    if(source.hp <= 0) return;
+    
+    // Special case: revive doesn't need target to be alive
+    if(ability.type !== 'revive' && target.hp <= 0) return;
+    // Set cooldown for powerful abilities
+    if(ability.cost >= 3) {
+        source.cooldowns[act.abilityKey] = 2; // 2 rounds cooldown
+    }
+    this.spawnEffect(source.x, source.y, target.x, target.y, ability.type, ability.name);
+    
+    if(ability.type === 'attack') {
+        let damage = Math.round(ability.power * source.dmgMod * (source.rowMod || 1.0));
+        const actualDmg = target.takeDamage(damage);
+        this.totalDamage += actualDmg;
+                this.totalActions++;
+        this.spawnText(target.x, target.y, `-${actualDmg}`, "red-500");
+        
+        // Apply status effects based on SOURCE role, not ability
+        if(source.appliesPoison) {
+            target.status.push({type: 'poison', duration: 3, power: 5});
+            this.spawnText(target.x, target.y - 30, `POISONED`, "purple-400");
+        } else if(source.appliesBleed) {
+            target.status.push({type: 'poison', duration: 2, power: 3});
+            this.spawnText(target.x, target.y - 30, `BLEEDING`, "red-400");
+        } else if(source.appliesBurn) {
+            target.status.push({type: 'burn', duration: 2, power: 8});
+            this.spawnText(target.x, target.y - 30, `BURNING`, "orange-400");
+        }
+    } else if(ability.type === 'heal') {
+        const healAmt = Math.round(ability.power * (source.healMod || 1.0));
+        target.hp = Math.min(target.maxHp, target.hp + healAmt);
+        this.totalHealing += healAmt;
+                this.totalActions++;
+        this.spawnText(target.x, target.y, `+${healAmt} HP`, "green-400");
+        
+        // Apply regen if Medic
+        if(source.appliesRegen) {
+            target.status.push({type: 'regen', duration: 3, power: 10});
+            this.spawnText(target.x, target.y - 30, `REGENERATING`, "green-300");
+        }
+        
+        Sound.play('heal');
+    } else if(ability.type === 'shield') {
+        target.shield += ability.power;
+        this.spawnText(target.x, target.y, `+${ability.power} SHIELD`, "cyan-400");
+        Sound.play('buff');
+    } else if(ability.type === 'buff') {
+        // Check if already buffed - prevent stacking
+        if(target.buffed) {
+            this.spawnText(target.x, target.y, `ALREADY BUFFED`, "orange-400");
+            return;
+        }
+        target.buffed = true;
+        target.dmgMod *= 1.3; // Reduced from 1.5 to 1.3
+        this.spawnText(target.x, target.y, `EMPOWERED`, "yellow-400");
+        Sound.play('buff');
+    } else if(ability.type === 'revive') {
+        if(target.hp <= 0) {
+            target.hp = ability.power;
+            this.spawnText(target.x, target.y, `RESURRECTED!`, "yellow-400");
+            this.notify(`${target.name} HAS BEEN REVIVED!`, "yellow");
+            Sound.play('revive');
+        }
+    }
+    target.isBeingAttacked = false;
+    this.render();
+},
+
+selectAbility(abilityKey, abilityType) {
+                this.selectedAbility = abilityKey;
+                const ability = ABILITIES[abilityKey];
+                
+                // Auto-target if only one valid target exists
+                const validTargets = this.units.filter(u => {
+                    if (abilityType === 'revive') {
+                        return u.team === 'player' && u.hp <= 0;
+                    } else if (abilityType === 'attack') {
+                        return u.team === 'enemy' && u.hp > 0;
+                    } else {
+                        return u.team === 'player' && u.hp > 0;
+                    }
+                });
+                
+                if (validTargets.length === 1) {
+                    // Auto-execute on the only target
+                    this.planAction(abilityKey, validTargets[0].id);
+                    this.units.forEach(unit => unit.isTargetable = false);
+                    this.selectedAbility = null;
+                    return;
+                }
+                
+                if (abilityType === 'revive') {
+                    this.notify(`SELECT FALLEN ALLY TO RESURRECT`, "yellow");
+                } else {
+                    this.notify(`SELECT ${abilityType === 'attack' ? 'ENEMY' : 'ALLY'} TARGET`, "indigo");
+                }
+                
+                // Highlight valid targets
+                validTargets.forEach(unit => {
+                    unit.isTargetable = true;
+                });
+                this.render();
+            },
+
+            planAction(abilityName, targetId) {
+                const source = this.units[this.selectedIndex];
+                const ability = ABILITIES[abilityName];
+                const target = this.units.find(u => u.id === targetId);
+
+                const actualCost = Math.max(1, ability.cost + (source.apCostMod || 0));
+                
+                if (source.ap >= actualCost) {
+                    source.ap -= actualCost;
+                    this.plannedActions.push({ source, target, ability, abilityKey: abilityName });
+                    this.notify(`${source.name} plans ${ability.name}`, "slate");
+                    Sound.play('click');
+                    this.cycleUnit(); // Changed from nextUnit
+                } else {
+                    this.notify("INSUFFICIENT STAMINA", "red");
+                }
+                this.updateActionQueue();
+            },
+
+            togglePanel() {
+                const expanded = document.getElementById('panelExpanded');
+                const collapsed = document.getElementById('panelCollapsed');
+                
+                if (expanded.classList.contains('hidden')) {
+                    expanded.classList.remove('hidden');
+                    collapsed.classList.add('hidden');
+                    Sound.play('click');
+                } else {
+                    expanded.classList.add('hidden');
+                    collapsed.classList.remove('hidden');
+                    this.updateMiniDisplay();
+                    Sound.play('click');
+                }
+            },
+
+            showEndScreen(victory) {
+                Sound.play(victory ? 'buff' : 'damage_player');
+                
+                const screen = document.getElementById('endScreen');
+                const icon = document.getElementById('endIcon');
+                const title = document.getElementById('endTitle');
+                const message = document.getElementById('endMessage');
+                const stats = document.getElementById('battleStats');
+                
+                if(victory) {
+                    icon.textContent = '🏆';
+                    title.textContent = 'VICTORY';
+                    title.className = 'text-7xl font-bold mb-4 bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent';
+                    message.textContent = 'All enemies eliminated!';
+                } else {
+                    icon.textContent = '💀';
+                    title.textContent = 'DEFEAT';
+                    title.className = 'text-7xl font-bold mb-4 bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent';
+                    message.textContent = 'Your squad has fallen...';
+                }
+                
+                stats.innerHTML = `
+                    <div class="flex justify-between"><span class="text-slate-500">Rounds Survived:</span><span class="text-indigo-400 font-bold">${this.round}</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">Actions Taken:</span><span class="text-indigo-400 font-bold">${this.totalActions || 0}</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">Damage Dealt:</span><span class="text-red-400 font-bold">${this.totalDamage || 0}</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">Healing Done:</span><span class="text-green-400 font-bold">${this.totalHealing || 0}</span></div>
+                `;
+                
+                screen.classList.remove('hidden');
+                setTimeout(() => screen.classList.remove('opacity-0'), 100);
+            },
+
+            updateActionQueue() {
+                const queueDiv = document.getElementById('actionQueue');
+                const countDiv = document.getElementById('queueCount');
+                if(!queueDiv) return;
+                
+                countDiv.textContent = `${this.plannedActions.length} Actions`;
+                
+                if(this.plannedActions.length === 0) {
+                    queueDiv.innerHTML = '<div class="text-xs text-slate-600 text-center py-4">No actions planned</div>';
+                    return;
+                }
+                
+                queueDiv.innerHTML = '';
+                this.plannedActions.forEach((action, idx) => {
+                    const ability = action.ability;
+                    const actionDiv = document.createElement('div');
+                    actionDiv.className = 'glass p-3 rounded-lg border border-white/10 flex items-center gap-3 group hover:border-red-500 cursor-pointer transition-all hover:scale-105';
+                    actionDiv.innerHTML = `
+                        <div class="flex items-center gap-2 flex-1">
+                            <div class="text-2xl" style="color: ${action.source.color}">${action.source.letter}</div>
+                            <div class="text-xl">${ability.icon}</div>
+                            <div class="text-2xl" style="color: ${action.target.color}">${action.target.letter}</div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-[10px] text-slate-400">${action.source.name}</div>
+                            <div class="text-xs font-bold">${ability.name}</div>
+                            <div class="text-[9px] text-slate-500">→ ${action.target.name}</div>
+                        </div>
+                        <span class="text-red-500 opacity-0 group-hover:opacity-100 text-lg">✕</span>
+                    `;
+                    actionDiv.onclick = () => {
+                        this.plannedActions.splice(idx, 1);
+                        action.source.ap += Math.max(1, ability.cost + (action.source.apCostMod || 0));
+                        this.updateActionQueue();
+                        this.updateUI();
+                        Sound.play('click');
+                    };
+                    queueDiv.appendChild(actionDiv);
+                });
+            },
+
+            updateMiniDisplay() {
+                const miniDisplay = document.getElementById('miniUnitDisplay');
+                miniDisplay.innerHTML = '';
+                
+                this.units.filter(u => u.team === 'player').forEach(u => {
+                    const mini = document.createElement('div');
+                    mini.className = `glass px-3 py-2 rounded-lg border ${u.hp > 0 ? 'border-white/20' : 'border-red-900 opacity-30'}`;
+                    mini.innerHTML = `
+                        <div class="text-lg" style="color: ${u.color}">${u.letter}</div>
+                        <div class="text-[8px] ${u.hp > 0 ? 'text-green-400' : 'text-red-500'}">${u.hp}/${u.maxHp}</div>
+                    `;
+                    miniDisplay.appendChild(mini);
+                });
+            },
+
+            cycleUnit() {
+                const players = this.units.filter(u => u.team === 'player' && u.hp > 0);
+                if(players.length === 0) return;
+                
+                const currentIdx = players.indexOf(this.units[this.selectedIndex]);
+                const nextIdx = (currentIdx + 1) % players.length;
+                this.selectedIndex = this.units.indexOf(players[nextIdx]);
+                
+                this.updateUI();
+                this.render();
+                Sound.play('click');
+                this.notify(`VIEWING: ${this.units[this.selectedIndex].name}`, "slate");
+            },
+
+            nextUnit() {
+                const players = this.units.filter(u => u.team === 'player' && u.hp > 0);
+                const currentIdx = players.indexOf(this.units[this.selectedIndex]);
+                if (currentIdx < players.length - 1) {
+                    this.selectedIndex = this.units.indexOf(players[currentIdx + 1]);
+                } else {
+                    // Stay on last unit or wait for phase end
+                }
+                this.updateUI();
+                this.render();
+            },
+
+            setRole(roleName) {
+                const u = this.units[this.selectedIndex];
+                u.role = roleName;
+                u.resetMods();
+                this.updateUI();
+                this.notify(`ROLE: ${roleName}`, "indigo");
+                Sound.play('click');
+            },
+
+            updateUI() {
+                const u = this.units[this.selectedIndex];
+                const phases = ["Planning", "Action", "Reaction"];
+                document.getElementById('phaseText').innerText = phases[this.phase];
+                const subtexts = ["Prepare your actions", "Executing commands", "Effects triggering"];
+                document.getElementById('phaseSubtext').innerText = subtexts[this.phase];
+                document.getElementById('phaseProgress').style.width = ((this.phase + 1) * 33) + "%";
+                document.getElementById('roundDisplay').innerText = String(this.round).padStart(2, '0');
+
+                if (this.phase === 0 && u && u.team === 'player') {
+                    document.getElementById('unitPanel').classList.remove('hidden');
+                    document.getElementById('unitName').innerText = u.name;
+                    document.getElementById('unitClass').innerText = u.type;
+                    document.getElementById('hpText').innerText = `${u.hp}/${u.maxHp}`;
+                    document.getElementById('hpFill').style.width = (u.hp / u.maxHp * 100) + "%";
+                    document.getElementById('apText').innerText = `${u.ap}/${u.maxAp}`;
+                    document.getElementById('apFill').style.width = (u.ap / u.maxAp * 100) + "%";
+                    // Render Unit Switcher
+                    const switcherBox = document.getElementById('unitSwitcher');
+                    switcherBox.innerHTML = '';
+                    this.units.filter(unit => unit.team === 'player').forEach((unit, idx) => {
+                        const isActive = unit.id === u.id;
+                        const isDead = unit.hp <= 0;
+                        const actualIdx = this.units.indexOf(unit);
+                        
+                        const btn = document.createElement('button');
+                        btn.className = `glass px-6 py-3 rounded-lg border-2 transition-all ${
+                            isDead ? 'opacity-30 border-red-900' :
+                            isActive ? 'border-indigo-500 bg-indigo-500/30 scale-105' : 
+                            'border-white/10 hover:border-white/30'
+                        }`;
+                        btn.style.pointerEvents = isDead ? 'none' : 'auto';
+                        btn.innerHTML = `
+                            <div class="flex items-center gap-3">
+                                <div class="text-2xl" style="color: ${unit.color}">${unit.letter}</div>
+                                <div class="text-left">
+                                    <div class="text-xs font-bold">${unit.name}</div>
+                                    <div class="text-[9px] text-slate-400">${unit.role}</div>
+                                    <div class="flex gap-2 mt-1">
+                                        <span class="text-[8px] text-green-400">HP: ${unit.hp}/${unit.maxHp}</span>
+                                        <span class="text-[8px] text-indigo-400">AP: ${unit.ap}/${unit.maxAp}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        btn.onclick = () => {
+                            if (!isDead) {
+                                this.selectedIndex = actualIdx;
+                                this.updateUI();
+                                this.render();
+                                Sound.play('click');
+                            }
+                        };
+                        
+                    });
+
+
+// Render Abilities
+                    const abBox = document.getElementById('abilitySelection');
+                    abBox.innerHTML = '';
+                    u.abilities.forEach(aKey => {
+                        const a = ABILITIES[aKey];
+                        const actualCost = Math.max(1, a.cost + (u.apCostMod || 0));
+                        const onCooldown = u.cooldowns[aKey] > 0;
+                        const canAfford = u.ap >= actualCost && !onCooldown;
+                        
+                        const btn = document.createElement('button');
+                        btn.className = `btn-action glass p-4 rounded-xl border-2 flex flex-col items-start gap-2 w-64 transition-all ${
+                            canAfford ? 'border-white/20 hover:border-indigo-500 hover:scale-105' : 'border-red-900/30 opacity-40'
+                        }`;
+                        btn.style.pointerEvents = canAfford ? 'auto' : 'none';
+                        
+                        
+                        // Show cooldown if active
+                        const cooldownText = onCooldown ? `<div class="text-[9px] text-red-400">COOLDOWN: ${u.cooldowns[aKey]} rounds</div>` : '';
+                        btn.innerHTML = `
+                            <div class="flex items-center gap-3 w-full">
+                                <span class="text-3xl">${a.icon}</span>
+                                <div class="flex-1 text-left">
+                                    <div class="text-sm font-bold text-white">${a.name}</div>
+                                    ${a.power > 0 ? `<div class="text-[9px] text-${a.type === 'attack' ? 'red' : 'green'}-400">PWR: ${Math.round(a.power * u.dmgMod * (u.rowMod || 1.0))}</div>` : ''}
+                                    ${cooldownText}
+                                    <div class="text-[10px] ${canAfford ? 'text-indigo-400' : 'text-red-500'} font-bold flex items-center gap-1">
+                                        COST: ${actualCost} ⚡
+                                        ${canAfford ? '<span class="text-green-400">✓</span>' : '<span class="text-red-500">✗</span>'}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-[11px] text-slate-400 leading-relaxed">
+                                ${a.desc}
+                            </div>
+                            ${a.type === 'attack' ? '<div class="text-[9px] mono text-red-400 mt-1">🎯 TARGETS ENEMIES</div>' : ''}
+                            ${a.type === 'heal' ? '<div class="text-[9px] mono text-green-400 mt-1">💚 TARGETS ALLIES</div>' : ''}
+                            ${a.type === 'shield' || a.type === 'buff' ? '<div class="text-[9px] mono text-cyan-400 mt-1">🛡️ TARGETS ALLIES</div>' : ''}
+                            ${a.type === 'revive' ? '<div class="text-[9px] mono text-yellow-400 mt-1">👼 REVIVES FALLEN</div>' : ''}
+                            <div class="text-[10px] mono text-slate-500 mt-1">
+                                Click to select ${a.type === 'attack' ? 'ENEMY' : 'ALLY'} target
+                            </div>
+                        `;
+                        btn.onclick = () => {
+                            // Visual feedback
+                            btn.style.transform = 'scale(0.95)';
+                            setTimeout(() => btn.style.transform = '', 100);
+                            this.selectAbility(aKey, a.type);
+                        };
+                        abBox.appendChild(btn);
+                    });
+                } else {
+                    document.getElementById('unitPanel').classList.add('hidden');
+                }
+            },
+
+            render() {
+                const unitGroup = document.getElementById('unitGroup');
+                unitGroup.innerHTML = '';
+                
+                this.units.forEach((u, i) => {
+// Show dead units if they're targetable for revive
+                    if (u.hp <= 0 && !u.isTargetable) return;
+                    
+                    
+                    
+                    const isSelected = i === this.selectedIndex && this.phase === 0;
+                    
+                    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    g.setAttribute("class", "hex-unit cursor-pointer pixel-char");
+                    
+                    const isDead = u.hp <= 0;
+                    g.setAttribute("opacity", isDead ? "0.4" : "1");
+                    g.onclick = () => {
+                        // If we have a selected ability, use it on this target
+                        if (this.selectedAbility && u.isTargetable) {
+                            this.planAction(this.selectedAbility, u.id);
+                            // Clear targeting
+                            this.units.forEach(unit => unit.isTargetable = false);
+                            this.selectedAbility = null;
+                            return;
+                        }
+                        
+                        // Otherwise, select this unit if it's player's
+                        if(this.phase === 0 && u.team === 'player') {
+                            this.selectedIndex = i;
+                            this.updateUI();
+                            this.render();
+                        }
+                    };
+
+                    const color = u.color || (u.team === 'player' ? '#6366f1' : '#f43f5e');
+
+                    // Targetable glow
+                    if(u.isTargetable) {
+                        const targetRing = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        targetRing.setAttribute("cx", u.x); targetRing.setAttribute("cy", u.y);
+                        targetRing.setAttribute("r", 60); targetRing.setAttribute("fill", "none");
+                        targetRing.setAttribute("stroke", "#22c55e"); targetRing.setAttribute("stroke-width", "3");
+                        targetRing.setAttribute("stroke-dasharray", "8 4");
+                        targetRing.setAttribute("filter", "drop-shadow(0 0 10px #22c55e)");
+                        g.appendChild(targetRing);
+                    }
+                    
+                    // Selection ring
+                    if(isSelected) {
+                        const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        ring.setAttribute("cx", u.x); ring.setAttribute("cy", u.y);
+                        ring.setAttribute("r", 60); ring.setAttribute("fill", "none");
+                        ring.setAttribute("stroke", color); ring.setAttribute("stroke-width", "3");
+                        ring.setAttribute("stroke-dasharray", "6 6");
+                        g.appendChild(ring);
+                    }
+                    // Acting indicator
+                    if(u.isActing) {
+                        const actRing = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        actRing.setAttribute("cx", u.x); actRing.setAttribute("cy", u.y);
+                        actRing.setAttribute("r", 60); actRing.setAttribute("fill", "none");
+                        actRing.setAttribute("stroke", "#fbbf24"); actRing.setAttribute("stroke-width", "4");
+                        actRing.setAttribute("filter", "drop-shadow(0 0 20px #fbbf24)");
+                        g.appendChild(actRing);
+                    }
+
+                    // Red pulse if this unit is being targeted
+                    if(u.isBeingAttacked) {
+                        const pulse = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        pulse.setAttribute("cx", u.x); pulse.setAttribute("cy", u.y);
+                        pulse.setAttribute("r", 60); pulse.setAttribute("fill", "none");
+                        pulse.setAttribute("stroke", "#ef4444"); pulse.setAttribute("stroke-width", "4");
+                        pulse.setAttribute("filter", "drop-shadow(0 0 15px #ef4444)");
+                        g.appendChild(pulse);
+                    }
+
+                    
+
+                    // Row indicator
+                    if(u.row === 'front') {
+                        const frontMark = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                        frontMark.setAttribute("x", u.x - 40);
+                        frontMark.setAttribute("y", u.y - 40);
+                        frontMark.setAttribute("width", "4");
+                        frontMark.setAttribute("height", "20");
+                        frontMark.setAttribute("fill", "#f59e0b");
+                        frontMark.setAttribute("rx", "2");
+                        g.appendChild(frontMark);
+                    }
+
+                    // Pixel Art Character
+                    const pixelArt = this.drawPixelCharacter(u.x, u.y, u.letter, color, u.team === 'enemy');
+                    pixelArt.forEach(pixel => g.appendChild(pixel));
+
+
+                    // Status effect icons
+                    if(u.status && u.status.length > 0) {
+                        u.status.forEach((effect, idx) => {
+                            const iconMap = {poison: '☠️', burn: '🔥', regen: '💚'};
+                            const statusText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                            statusText.setAttribute("x", u.x - 15 + (idx * 12));
+                            statusText.setAttribute("y", u.y - 60);
+                            statusText.setAttribute("class", "text-xs");
+                            statusText.textContent = iconMap[effect.type] || '?';
+                            g.appendChild(statusText);
+                        });
+                    }
+
+                    // HP Bar (always visible) - ENHANCED
+                    const hpBack = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    hpBack.setAttribute("x", u.x - 25); hpBack.setAttribute("y", u.y + 50);
+                    hpBack.setAttribute("width", 50); hpBack.setAttribute("height", 5);
+                    hpBack.setAttribute("fill", "#1a1a1a"); hpBack.setAttribute("rx", "2.5");
+                    hpBack.setAttribute("stroke", "#333"); hpBack.setAttribute("stroke-width", "1");
+                    g.appendChild(hpBack);
+
+                    const hpFore = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    hpFore.setAttribute("x", u.x - 25); hpFore.setAttribute("y", u.y + 50);
+                    const hpPercent = u.hp / u.maxHp;
+                    hpFore.setAttribute("width", hpPercent * 50); hpFore.setAttribute("height", 5);
+                    
+                    // Color based on health
+                    let hpColor = "#22c55e";
+                    if (hpPercent < 0.3) hpColor = "#ef4444";
+                    else if (hpPercent < 0.6) hpColor = "#f59e0b";
+                    
+                    hpFore.setAttribute("fill", u.team === 'player' ? hpColor : "#ef4444");
+                    hpFore.setAttribute("rx", "2.5");
+                    g.appendChild(hpFore);
+                    
+                    // HP Text
+                    const hpText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    hpText.setAttribute("x", u.x);hpText.setAttribute("y", u.y + 70);
+                    hpText.setAttribute("text-anchor", "middle");
+                    hpText.setAttribute("class", "mono text-[9px] fill-slate-400");
+                    hpText.textContent = `${u.hp}/${u.maxHp}`;
+                    g.appendChild(hpText);
+                    
+                    // Threat indicator for enemies
+                    if(u.team === 'enemy' && u.hp > 0) {
+                        const threatLevel = u.ap >= 3 ? 'high' : u.ap >= 2 ? 'med' : 'low';
+                        const threatColors = {high: '#ef4444', med: '#f59e0b', low: '#64748b'};
+                        
+                        const threat = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        threat.setAttribute("cx", u.x + 40); threat.setAttribute("cy", u.y - 40);
+                        threat.setAttribute("r", 6);
+                        threat.setAttribute("fill", threatColors[threatLevel]);
+                        threat.setAttribute("filter", `drop-shadow(0 0 6px ${threatColors[threatLevel]})`);
+                        g.appendChild(threat);
+                    }
+                    
+                    // Shield bar (if any)
+                    if (u.shield > 0) {
+                        const shieldBar = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                        shieldBar.setAttribute("x", u.x - 20); shieldBar.setAttribute("y", u.y + 25);
+                        shieldBar.setAttribute("width", Math.min(40, u.shield / 2)); shieldBar.setAttribute("height", 3);
+                        shieldBar.setAttribute("fill", "#06b6d4"); shieldBar.setAttribute("rx", "1.5");
+                        g.appendChild(shieldBar);
+                    }
+
+                    unitGroup.appendChild(g);
+                });
+            },
+
+            drawPixelCharacter(x, y, letter, color, isEnemy) {
+                const pixels = [];
+                const pixelSize = 6; // Each pixel is 2x2 SVG units for visibility
+                const gridSize = 16;
+                
+                // Character designs based on letter/role
+               const designs = {
+
+                    'V': [ // Vanguard - Armored knight
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,15,15,15,15,15,15,15,15,0,0,0,0],
+                        [0,0,0,15,12,12,12,12,12,12,12,12,15,0,0,0],
+                        [0,0,15,12,12,12,12,12,12,12,12,12,12,15,0,0],
+                        [0,0,15,12,13,13,13,13,13,13,13,13,12,15,0,0],
+                        [0,0,15,12,13,11,11,11,11,11,11,13,12,15,0,0],
+                        [0,0,15,13,16,16,16,5,5,16,16,16,13,15,0,0],
+                        [0,15,12,13,17,6,6,5,5,6,6,17,13,12,15,0],
+                        [0,15,12,13,8,6,6,5,5,6,6,8,13,12,15,0],
+                        [0,15,15,12,12,12,12,5,5,12,12,12,12,15,15,0],
+                        [15,12,12,12,17,17,17,12,12,17,17,17,12,12,12,15],
+                        [15,12,12,17,17,17,17,12,12,17,17,17,17,12,12,15],
+                        [0,15,12,12,17,17,17,15,15,17,17,17,12,12,15,0],
+                        [0,0,15,12,12,12,12,15,15,12,12,12,12,15,0,0],
+                        [0,0,0,15,15,15,15,15,15,15,15,15,15,0,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+                    ],
+                    'M': [ // Medic - Healer with cross
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,15,15,15,0,0,0,0,0,0,0,0,15,15,15,0],
+                        [0,15,19,19,15,15,15,15,15,15,15,15,19,19,15,0],
+                        [0,15,20,19,19,18,18,18,18,18,18,19,19,20,15,0],
+                        [0,0,15,19,19,19,18,18,18,18,19,19,19,15,0,0],
+                        [0,0,15,18,13,11,11,11,11,11,11,13,13,15,0,0],
+                        [0,0,15,13,16,16,16,5,5,16,16,16,13,15,0,0],
+                        [0,15,8,13,17,6,6,5,5,6,6,17,13,8,15,0],
+                        [0,15,8,13,8,6,6,5,5,6,6,8,13,8,15,0],
+                        [0,0,15,8,8,8,8,11,11,8,8,8,8,15,0,0],
+                        [0,0,0,15,11,8,8,8,8,8,8,11,15,0,0,0],
+                        [0,0,15,7,7,11,11,11,11,11,11,7,7,15,0,0],
+                        [0,15,8,8,7,7,7,15,15,7,7,7,8,8,15,0],
+                        [0,15,8,8,17,17,17,15,15,17,17,17,8,8,15,0],
+                        [0,0,15,15,6,6,15,15,15,15,6,6,15,15,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+                    ],
+                    'C': [ // Catalyst - Mage with staff
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,15,15,15,15,15,15,15,15,0,0,0,0],
+                        [0,0,0,15,13,9,9,9,9,9,9,13,15,0,0,0],
+                        [0,0,15,13,13,13,9,9,9,9,13,13,13,15,0,0],
+                        [0,0,15,13,13,13,13,13,13,13,13,13,13,15,0,0],
+                        [0,0,15,13,13,4,4,4,4,4,4,13,13,15,0,0],
+                        [0,0,15,13,16,16,16,5,5,16,16,16,13,15,0,0],
+                        [0,15,2,13,17,6,6,5,5,6,6,17,13,2,15,0],
+                        [0,15,2,13,8,6,6,5,5,6,6,8,13,2,15,10],
+                        [0,0,15,2,2,2,2,5,5,2,2,2,2,15,10,10],
+                        [0,0,0,15,5,2,2,2,2,2,2,5,15,10,10,0],
+                        [0,0,15,2,2,5,5,5,5,5,5,2,2,15,10,0],
+                        [0,15,2,2,2,2,2,15,15,2,2,2,2,2,15,0],
+                        [0,15,2,2,17,17,17,15,15,17,17,17,2,2,15,0],
+                        [0,0,15,15,6,6,15,15,15,15,6,6,15,15,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+                    ],
+                    'B': [ // Berserker - Dual axes
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,15,15,15,15,15,15,15,15,0,0,0,0],
+                        [0,0,0,15,13,9,9,9,9,9,9,13,15,0,0,0],
+                        [0,0,15,13,13,13,9,9,9,9,13,13,13,15,0,0],
+                        [0,0,15,13,13,13,13,13,13,13,13,13,13,15,0,0],
+                        [0,0,15,13,13,4,4,4,4,4,4,13,13,15,0,0],
+                        [0,0,15,13,16,16,16,5,5,16,16,16,13,15,0,0],
+                        [9,15,9,13,17,6,6,5,5,6,6,17,13,9,15,9],
+                        [9,15,9,13,8,6,6,5,5,6,6,8,13,9,15,9],
+                        [9,9,15,9,9,9,9,5,5,9,9,9,9,15,9,9],
+                        [0,9,9,15,5,9,9,9,9,9,9,5,15,9,9,0],
+                        [0,0,15,13,13,5,5,5,5,5,5,13,13,15,0,0],
+                        [0,15,9,9,13,13,13,15,15,13,13,13,9,9,15,0],
+                        [0,15,9,9,17,17,17,15,15,17,17,17,9,9,15,0],
+                        [0,0,15,15,6,6,15,15,15,15,6,6,15,15,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+                    ],
+                    'X': [ // Tactician - Commander
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,15,15,15,15,15,15,15,15,0,0,0,0],
+                        [0,0,0,15,13,9,9,9,9,9,9,13,15,0,0,0],
+                        [0,0,15,13,13,13,9,9,9,9,13,13,13,15,0,0],
+                        [0,0,15,13,13,13,13,13,13,13,13,13,13,15,0,0],
+                        [0,0,15,13,13,11,11,11,11,11,11,13,13,15,0,0],
+                        [0,0,15,13,16,16,16,5,5,16,16,16,13,15,0,0],
+                        [0,15,5,13,17,6,6,5,5,6,6,17,13,5,15,0],
+                        [0,15,5,13,8,6,6,5,5,6,6,8,13,5,15,0],
+                        [0,0,15,5,5,5,5,11,11,5,5,5,5,15,0,0],
+                        [0,0,0,15,11,5,5,5,5,5,5,11,15,0,0,0],
+                        [0,0,15,7,7,11,11,11,11,11,11,7,7,15,0,0],
+                        [0,15,5,5,7,7,7,7,7,7,7,7,5,5,15,0],
+                        [0,15,5,5,17,17,17,15,15,17,17,17,5,5,15,0],
+                        [0,0,15,15,6,6,15,15,15,15,6,6,15,15,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+                    ],
+                    'A': [ // Angel - Divine wings
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                        [0,0,0,0,15,15,15,15,15,15,15,15,0,0,0,0],
+                        [0,0,0,15,10,10,10,10,10,10,10,10,15,0,0,0],
+                        [0,0,15,10,10,10,10,10,10,10,10,10,10,15,0,0],
+                        [0,0,15,10,13,13,13,13,13,13,13,13,10,15,0,0],
+                        [0,0,15,10,13,11,11,11,11,11,11,13,10,15,0,0],
+                        [0,0,15,13,16,16,16,5,5,16,16,16,13,15,0,0],
+                        [8,15,8,13,17,6,6,5,5,6,6,17,13,8,15,8],
+                        [8,15,8,13,8,6,6,5,5,6,6,8,13,8,15,8],
+                        [8,8,15,8,8,8,8,11,11,8,8,8,8,15,8,8],
+                        [0,8,8,15,11,8,8,8,8,8,8,11,15,8,8,0],
+                        [0,0,15,10,10,11,11,11,11,11,11,10,10,15,0,0],
+                        [0,15,8,8,10,10,10,15,15,10,10,10,8,8,15,0],
+                        [0,15,8,8,17,17,17,15,15,17,17,17,8,8,15,0],
+                        [0,0,15,15,6,6,15,15,15,15,6,6,15,15,0,0],
+                        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+                    ]
+                };
+                
+const palette = {
+                    0: 'transparent',        // transparent
+                    
+                    // Outlines / Darks
+                    1: '#141b1b',   // deep black-green outline
+                    2: '#3d2936',   // dark shadow purple
+                    3: '#52333f',   // hair shadow
+                    4: '#8f4d57',   // hair highlight
+                    
+                    // Skin / Face
+                    5: isEnemy ? '#ffb8a0' : '#ffae70',   // skin tone
+                    6: '#2c354d',   // eye blue (dark)
+                    7: '#3b7d4f',   // shirt green
+                    8: '#f5ffe8',   // eye white/light
+                    9: '#d63c5a',   // red / damage
+                    10: '#f2b233',  // yellow/gold
+                    11: '#bd6a62',  // orange/warm
+                    12: '#5c7cfa',  // bright blue (armor)
+                    13: '#7a1f3d',  // dark red/purple (hair)
+                    14: '#404973',  // steel blue (shield)
+                    15: '#000000',  // pure black (outline)
+                    16: '#3d2936',  // almost purple (shadow)
+                    17: '#686f99',  // pale blue (accent)
+                    18: '#d6f264', //pee green 
+                    19: '#9cdb43', //Lime green
+                    20: '#59c135', //Normal Green
+                    21: '#14a02e' //Darker Green
+                };
+                
+                const design = designs[letter] || designs['S'];
+                
+                design.forEach((row, rowIdx) => {
+                    row.forEach((colorIdx, colIdx) => {
+                        if (colorIdx !== 0) {
+                            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                            rect.setAttribute("x", x - (gridSize * pixelSize / 2) + (colIdx * pixelSize));
+                            rect.setAttribute("y", y - (gridSize * pixelSize / 2) + (rowIdx * pixelSize));
+                            rect.setAttribute("width", pixelSize);
+                            rect.setAttribute("height", pixelSize);
+                            rect.setAttribute("fill", palette[colorIdx]);
+                            rect.setAttribute("shape-rendering", "crispEdges");
+                            pixels.push(rect);
+                        }
+                    });
+                });
+                
+                return pixels;
+            },
+
+            getHexPoints(x, y, radius) {
+                let points = "";
+                for (let i = 0; i < 6; i++) {
+                    const angle = (Math.PI / 3) * i + (Math.PI / 6);
+                    points += `${x + radius * Math.cos(angle)},${y + radius * Math.sin(angle)} `;
+                }
+                return points;
+            },
+
+            notify(msg, color) {
+                const el = document.createElement('div');
+                el.className = `glass px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest text-${color}-400 border border-${color}-500 mb-2 phase-indicator`;
+                el.innerText = msg;
+                document.getElementById('notif').appendChild(el);
+                setTimeout(() => el.remove(), 2000);
+            },
+
+            spawnText(x, y, text, colorClass) {
+                const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                t.setAttribute("x", x); t.setAttribute("y", y);
+                t.setAttribute("text-anchor", "middle");
+                t.setAttribute("class", `mono font-bold text-sm fill-${colorClass}`);
+                t.textContent = text;
+                document.getElementById('effectGroup').appendChild(t);
+                
+                let opacity = 1;
+                const anim = setInterval(() => {
+                    y -= 1; opacity -= 0.05;
+                    t.setAttribute("y", y); t.setAttribute("opacity", opacity);
+                    if(opacity <= 0) { clearInterval(anim); t.remove(); }
+                }, 30);
+            },
+
+            spawnEffect(x1, y1, x2, y2, type, abilityName) {
+                const effectGroup = document.getElementById('effectGroup');
+                
+                // DIFFERENT VISUALS PER ATTACK TYPE
+                if (type === 'attack') {
+                    if(abilityName === 'Slash') {
+                        // Quick slash arc
+                        for(let i = 0; i < 5; i++) {
+                            setTimeout(() => {
+                                const slash = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                                const angle = Math.random() * Math.PI / 4 - Math.PI / 8;
+                                const len = 40;
+                                slash.setAttribute("x1", x2 + Math.cos(angle) * len);
+                                slash.setAttribute("y1", y2 + Math.sin(angle) * len);
+                                slash.setAttribute("x2", x2 - Math.cos(angle) * len);
+                                slash.setAttribute("y2", y2 - Math.sin(angle) * len);
+                                slash.setAttribute("stroke", '#ef4444');
+                                slash.setAttribute("stroke-width", "3");
+                                slash.setAttribute("stroke-linecap", "round");
+                                slash.setAttribute("opacity", "0.8");
+                                effectGroup.appendChild(slash);
+                                setTimeout(() => slash.remove(), 200);
+                            }, i * 30);
+                        }
+                    } else if(abilityName === 'Blast') {
+                        // Expanding explosion
+                        const explosion = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        explosion.setAttribute("cx", x2);
+                        explosion.setAttribute("cy", y2);
+                        explosion.setAttribute("r", 10);
+                        explosion.setAttribute("fill", '#ff6b00');
+                        explosion.setAttribute("opacity", "0.8");
+                        explosion.setAttribute("filter", "drop-shadow(0 0 20px #ff6b00)");
+                        effectGroup.appendChild(explosion);
+                        
+                        let radius = 10;
+                        let opacity = 0.8;
+                        const expand = setInterval(() => {
+                            radius += 8;
+                            opacity -= 0.08;
+                            explosion.setAttribute("r", radius);
+                            explosion.setAttribute("opacity", opacity);
+                            if(opacity <= 0) {
+                                clearInterval(expand);
+                                explosion.remove();
+                            }
+                        }, 30);
+                        
+                        // Fire particles
+                        for(let i = 0; i < 12; i++) {
+                            const angle = (Math.PI * 2 / 12) * i;
+                            const particle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                            particle.setAttribute("cx", x2);
+                            particle.setAttribute("cy", y2);
+                            particle.setAttribute("r", 4);
+                            particle.setAttribute("fill", '#ff6b00');
+                            effectGroup.appendChild(particle);
+                            
+                            let dist = 0;
+                            const burst = setInterval(() => {
+                                dist += 3;
+                                particle.setAttribute("cx", x2 + Math.cos(angle) * dist);
+                                particle.setAttribute("cy", y2 + Math.sin(angle) * dist);
+                                particle.setAttribute("opacity", 1 - dist / 50);
+                                if(dist > 50) {
+                                    clearInterval(burst);
+                                    particle.remove();
+                                }
+                            }, 20);
+                        }
+                    } else if(abilityName === 'Pierce') {
+                        // Lightning bolt
+                        const points = [];
+                        let currentX = x1;
+                        let currentY = y1;
+                        const steps = 10;
+                        for(let i = 0; i <= steps; i++) {
+                            const progress = i / steps;
+                            const targetX = x1 + (x2 - x1) * progress + (Math.random() - 0.5) * 20;
+                            const targetY = y1 + (y2 - y1) * progress + (Math.random() - 0.5) * 20;
+                            points.push(`${targetX},${targetY}`);
+                        }
+                        
+                        const bolt = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+                        bolt.setAttribute("points", points.join(' '));
+                        bolt.setAttribute("stroke", '#8b5cf6');
+                        bolt.setAttribute("stroke-width", "3");
+                        bolt.setAttribute("fill", "none");
+                        bolt.setAttribute("filter", "drop-shadow(0 0 10px #8b5cf6)");
+                        effectGroup.appendChild(bolt);
+                        setTimeout(() => bolt.remove(), 300);
+                    } else if(abilityName === 'Smite') {
+                        // Lightning from above
+                        const bolt = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        bolt.setAttribute("x1", x2);
+                        bolt.setAttribute("y1", 0);
+                        bolt.setAttribute("x2", x2);
+                        bolt.setAttribute("y2", y2);
+                        bolt.setAttribute("stroke", '#eab308');
+                        bolt.setAttribute("stroke-width", "6");
+                        bolt.setAttribute("stroke-linecap", "round");
+                        bolt.setAttribute("filter", "drop-shadow(0 0 20px #eab308)");
+                        effectGroup.appendChild(bolt);
+                        
+                        // Shockwave
+                        const wave = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        wave.setAttribute("cx", x2);
+                        wave.setAttribute("cy", y2);
+                        wave.setAttribute("r", 10);
+                        wave.setAttribute("fill", "none");
+                        wave.setAttribute("stroke", '#eab308');
+                        wave.setAttribute("stroke-width", "4");
+                        effectGroup.appendChild(wave);
+                        
+                        let radius = 10;
+                        let opacity = 1;
+                        const expand = setInterval(() => {
+                            radius += 10;
+                            opacity -= 0.1;
+                            wave.setAttribute("r", radius);
+                            wave.setAttribute("opacity", opacity);
+                            if(opacity <= 0) {
+                                clearInterval(expand);
+                                wave.remove();
+                            }
+                        }, 30);
+                        
+                        setTimeout(() => bolt.remove(), 400);
+                    } else if(abilityName === 'Drain') {
+                        // Blood particles flowing back
+                        for(let i = 0; i < 15; i++) {
+                            setTimeout(() => {
+                                const droplet = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                                droplet.setAttribute("cx", x2);
+                                droplet.setAttribute("cy", y2);
+                                droplet.setAttribute("r", 3);
+                                droplet.setAttribute("fill", '#dc2626');
+                                effectGroup.appendChild(droplet);
+                                
+                                let progress = 0;
+                                const flow = setInterval(() => {
+                                    progress += 0.05;
+                                    const currentX = x2 + (x1 - x2) * progress;
+                                    const currentY = y2 + (y1 - y2) * progress + Math.sin(progress * Math.PI * 2) * 10;
+                                    droplet.setAttribute("cx", currentX);
+                                    droplet.setAttribute("cy", currentY);
+                                    if(progress >= 1) {
+                                        clearInterval(flow);
+                                        droplet.remove();
+                                    }
+                                }, 20);
+                            }, i * 40);
+                        }
+                    } else {
+                        // Default beam
+                        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+                        line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+                        line.setAttribute("stroke", '#ef4444');
+                        line.setAttribute("stroke-width", "6");
+                        line.setAttribute("stroke-linecap", "round");
+                        line.setAttribute("filter", "drop-shadow(0 0 8px #ef4444)");
+                        effectGroup.appendChild(line);
+                        setTimeout(() => line.remove(), 400);
+                    }
+                    
+                } else if (type === 'heal') {
+                    // Healing particles rising
+                    for(let i = 0; i < 12; i++) {
+                        setTimeout(() => {
+                            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                            const offsetX = (Math.random() - 0.5) * 30;
+                            circle.setAttribute("cx", x2 + offsetX);
+                            circle.setAttribute("cy", y2);
+                            circle.setAttribute("r", 4);
+                            circle.setAttribute("fill", '#22c55e');
+                            circle.setAttribute("filter", "drop-shadow(0 0 6px #22c55e)");
+                            effectGroup.appendChild(circle);
+                            
+                            let yPos = y2;
+                            let opacity = 1;
+                            const rise = setInterval(() => {
+                                yPos -= 3;
+                                opacity -= 0.05;
+                                circle.setAttribute("cy", yPos);
+                                circle.setAttribute("opacity", opacity);
+                                if (opacity <= 0) { clearInterval(rise); circle.remove(); }
+                            }, 30);
+                        }, i * 50);
+                    }
+                    
+                } else if (type === 'shield') {
+                    // Shield bubble
+                    const shield = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    shield.setAttribute("cx", x2); shield.setAttribute("cy", y2);
+                    shield.setAttribute("r", 40);
+                    shield.setAttribute("fill", "none");
+                    shield.setAttribute("stroke", '#06b6d4');
+                    shield.setAttribute("stroke-width", "4");
+                    shield.setAttribute("filter", "drop-shadow(0 0 12px #06b6d4)");
+                    effectGroup.appendChild(shield);
+                    
+                    let opacity = 1;
+                    const fade = setInterval(() => {
+                        opacity -= 0.05;
+                        shield.setAttribute("opacity", opacity);
+                        if (opacity <= 0) { clearInterval(fade); shield.remove(); }
+                    }, 40);
+                    
+                } else if (type === 'buff') {
+                    // Spiral glow
+                    for(let i = 0; i < 16; i++) {
+                        setTimeout(() => {
+                            const angle = (Math.PI * 2 / 16) * i;
+                            const star = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                            star.setAttribute("cx", x2 + Math.cos(angle) * 35);
+                            star.setAttribute("cy", y2 + Math.sin(angle) * 35);
+                            star.setAttribute("r", 3);
+                            star.setAttribute("fill", '#f59e0b');
+                            star.setAttribute("filter", "drop-shadow(0 0 8px #f59e0b)");
+                            effectGroup.appendChild(star);
+                            
+                            setTimeout(() => star.remove(), 600);
+                        }, i * 30);
+                    }
+                } else if (type === 'revive') {
+                    // Divine light from above
+                    for(let i = 0; i < 20; i++) {
+                        setTimeout(() => {
+                            const star = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                            const offsetX = (Math.random() - 0.5) * 60;
+                            star.setAttribute("cx", x2 + offsetX);
+                            star.setAttribute("cy", y2 - 100);
+                            star.setAttribute("r", 5);
+                            star.setAttribute("fill", '#fbbf24');
+                            star.setAttribute("filter", "drop-shadow(0 0 10px #fbbf24)");
+                            effectGroup.appendChild(star);
+                            
+                            let yPos = y2 - 100;
+                            let opacity = 1;
+                            const fall = setInterval(() => {
+                                yPos += 4;
+                                opacity -= 0.03;
+                                star.setAttribute("cy", yPos);
+                                star.setAttribute("opacity", opacity);
+                                if (opacity <= 0) { clearInterval(fall); star.remove(); }
+                            }, 30);
+                        }, i * 40);
+                    }
+                    
+                    const reviveCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    reviveCircle.setAttribute("cx", x2);
+                    reviveCircle.setAttribute("cy", y2);
+                    reviveCircle.setAttribute("r", 10);
+                    reviveCircle.setAttribute("fill", "none");
+                    reviveCircle.setAttribute("stroke", '#fbbf24');
+                    reviveCircle.setAttribute("stroke-width", "3");
+                    reviveCircle.setAttribute("filter", "drop-shadow(0 0 15px #fbbf24)");
+                    effectGroup.appendChild(reviveCircle);
+                    
+                    let radius = 10;
+                    let opacity = 1;
+                    const expand = setInterval(() => {
+                        radius += 3;
+                        opacity -= 0.04;
+                        reviveCircle.setAttribute("r", radius);
+                        reviveCircle.setAttribute("opacity", opacity);
+                        if (opacity <= 0) { clearInterval(expand); reviveCircle.remove(); }
+                    }, 30);
+                }
+            }
+        };
+
+        // ===== MULTIPLAYER FUNCTIONS =====
+let mpSelectedRoles = [];
+
+function backToMainMenu() {
+    if(game.roomRef) {
+        game.roomRef.off();
+        if(game.roomCode) {
+            database.ref(`rooms/${game.roomCode}`).remove();
+        }
+    }
+    document.getElementById('multiplayerLobby').classList.add('hidden');
+    document.getElementById('menuOverlay').classList.remove('hidden');
+    game.isMultiplayer = false;
+    game.roomCode = null;
+}
+
+function showMultiplayerLobby() {
+    document.getElementById('menuOverlay').classList.add('hidden');
+    document.getElementById('multiplayerLobby').classList.remove('hidden');
+    document.getElementById('lobbyOptions').classList.remove('hidden');
+    document.getElementById('roomCodeDisplay').classList.add('hidden');
+    document.getElementById('joinInput').classList.add('hidden');
+    document.getElementById('multiplayerTeamSelect').classList.add('hidden');
+}
+
+function generateRoomCode() {
+    return Math.random().toString(36).substring(2, 6).toUpperCase();
+}
+
+function createRoom() {
+    game.isMultiplayer = true;
+    game.isHost = true;
+    game.roomCode = generateRoomCode();
+    game.playerId = 'player1';
+    game.opponentId = 'player2';
+    
+    game.roomRef = database.ref(`rooms/${game.roomCode}`);
+    game.roomRef.set({
+        host: game.playerId,
+        player1: { ready: false, roles: [] },
+        player2: { ready: false, roles: [] },
+        gameStarted: false,
+        currentPhase: 0,
+        round: 1
+    });
+    
+    document.getElementById('lobbyOptions').classList.add('hidden');
+    document.getElementById('roomCodeDisplay').classList.remove('hidden');
+    document.getElementById('roomCodeText').textContent = game.roomCode;
+    document.getElementById('multiplayerTeamSelect').classList.remove('hidden');
+    
+    renderMPRoleSelection();
+    listenForOpponent();
+}
+
+function showJoinInput() {
+    document.getElementById('joinInput').classList.remove('hidden');
+}
+
+function joinRoom() {
+    const code = document.getElementById('roomCodeInput').value.toUpperCase();
+    if(code.length !== 4) {
+        alert('Please enter a 4-character room code');
+        return;
+    }
+    
+    game.isMultiplayer = true;
+    game.isHost = false;
+    game.roomCode = code;
+    game.playerId = 'player2';
+    game.opponentId = 'player1';
+    
+    game.roomRef = database.ref(`rooms/${game.roomCode}`);
+    game.roomRef.once('value', (snapshot) => {
+        if(!snapshot.exists()) {
+            alert('Room not found!');
+            return;
+        }
+        
+        document.getElementById('lobbyOptions').classList.add('hidden');
+        document.getElementById('joinInput').classList.add('hidden');
+        document.getElementById('roomCodeDisplay').classList.remove('hidden');
+        document.getElementById('roomCodeText').textContent = game.roomCode;
+        document.getElementById('waitingText').classList.add('hidden');
+        document.getElementById('multiplayerTeamSelect').classList.remove('hidden');
+        
+        renderMPRoleSelection();
+        listenForGameStart();
+    });
+}
+
+function listenForOpponent() {
+    game.roomRef.child('player2/ready').on('value', (snapshot) => {
+        if(snapshot.val() === true) {
+            document.getElementById('waitingText').textContent = 'Opponent ready! Waiting for you...';
+        }
+    });
+    listenForGameStart();
+}
+
+function listenForGameStart() {
+    game.roomRef.child('gameStarted').on('value', (snapshot) => {
+        if(snapshot.val() === true) {
+            game.roomRef.once('value', (snap) => {
+                const data = snap.val();
+                const p1Roles = data.player1.roles;
+                const p2Roles = data.player2.roles;
+                
+                if(game.playerId === 'player1') {
+                    game.selectedRoles = p1Roles;
+                } else {
+                    game.selectedRoles = p2Roles;
+                }
+                
+                startMultiplayerGame(p1Roles, p2Roles);
+            });
+        }
+    });
+}
+
+function renderMPRoleSelection() {
+    const grid = document.getElementById('mpRoleGrid');
+    grid.innerHTML = '';
+    
+    Object.keys(ROLES).forEach(roleName => {
+        const role = ROLES[roleName];
+        const isSelected = mpSelectedRoles.includes(roleName);
+        const canSelect = mpSelectedRoles.length < 3 || isSelected;
+        
+        const card = document.createElement('div');
+        card.className = `glass p-4 rounded-lg border-2 cursor-pointer transition-all ${
+            isSelected ? 'border-indigo-500 bg-indigo-500/20 scale-105' : 
+            canSelect ? 'border-white/10 hover:border-white/30' : 'border-white/5 opacity-30'
+        }`;
+        card.style.pointerEvents = canSelect ? 'auto' : 'none';
+        
+        card.innerHTML = `
+            <div class="text-3xl mb-2 text-center" style="color: ${role.color}">${role.letter}</div>
+            <div class="text-sm font-bold text-center">${roleName}</div>
+            ${isSelected ? '<div class="text-[8px] mono text-indigo-400 text-center mt-1">✓</div>' : ''}
+        `;
+        
+        card.onclick = () => toggleMPRole(roleName);
+        grid.appendChild(card);
+    });
+}
+
+function toggleMPRole(roleName) {
+    const idx = mpSelectedRoles.indexOf(roleName);
+    if(idx > -1) {
+        mpSelectedRoles.splice(idx, 1);
+    } else if(mpSelectedRoles.length < 3) {
+        mpSelectedRoles.push(roleName);
+        Sound.play('click');
+    }
+    
+    updateMPSquadDisplay();
+    renderMPRoleSelection();
+}
+
+function updateMPSquadDisplay() {
+    const squadDiv = document.getElementById('mpSelectedSquad');
+    const countSpan = document.getElementById('mpSquadCount');
+    const readyBtn = document.getElementById('mpReadyBtn');
+    
+    countSpan.textContent = `(${mpSelectedRoles.length}/3)`;
+    
+    if(mpSelectedRoles.length === 0) {
+        squadDiv.innerHTML = '<div class="text-slate-600 text-sm">No units selected</div>';
+        readyBtn.disabled = true;
+        readyBtn.classList.add('opacity-50');
+    } else {
+        squadDiv.innerHTML = '';
+        mpSelectedRoles.forEach(roleName => {
+            const role = ROLES[roleName];
+            const mini = document.createElement('div');
+            mini.className = 'glass p-3 rounded-lg border border-indigo-500/50';
+            mini.innerHTML = `
+                <div class="text-2xl text-center" style="color: ${role.color}">${role.letter}</div>
+                <div class="text-[8px] text-center">${roleName}</div>
+            `;
+            squadDiv.appendChild(mini);
+        });
+        
+        if(mpSelectedRoles.length === 3) {
+            readyBtn.disabled = false;
+            readyBtn.classList.remove('opacity-50');
+        } else {
+            readyBtn.disabled = true;
+            readyBtn.classList.add('opacity-50');
+        }
+    }
+}
+
+function markReady() {
+    if(mpSelectedRoles.length !== 3) return;
+    
+    game.roomRef.child(`${game.playerId}/ready`).set(true);
+    game.roomRef.child(`${game.playerId}/roles`).set(mpSelectedRoles);
+    
+    document.getElementById('mpReadyBtn').textContent = 'WAITING FOR OPPONENT...';
+    document.getElementById('mpReadyBtn').disabled = true;
+    
+    game.roomRef.once('value', (snapshot) => {
+        const data = snapshot.val();
+        if(data.player1.ready && data.player2.ready && game.isHost) {
+            game.roomRef.update({ gameStarted: true });
+        }
+    });
+}
+
+function startMultiplayerGame(p1Roles, p2Roles) {
+    document.getElementById('multiplayerLobby').classList.add('hidden');
+    document.getElementById('gameUI').classList.remove('hidden');
+    
+    game.units = [];
+    
+    // Create player 1 team (left side)
+    p1Roles.forEach((roleName, i) => {
+        const role = ROLES[roleName];
+        let x = role.row === 'front' ? 220 : 150;
+        let y = 200 + (i * 100);
+        
+        const unit = new Unit(`p${i+1}`, `${roleName} ${i+1}`, roleName.toUpperCase(), 
+                             game.playerId === 'player1' ? 'player' : 'enemy', x, y, 100, 3);
+        unit.role = roleName;
+        unit.letter = role.letter;
+        unit.color = role.color;
+        unit.abilities = game.getAbilitiesForRole(roleName);
+        unit.row = role.row;
+        unit.resetMods();
+        game.units.push(unit);
+    });
+    
+    // Create player 2 team (right side)
+    p2Roles.forEach((roleName, i) => {
+        const role = ROLES[roleName];
+        let x = role.row === 'front' ? 580 : 650;
+        let y = 200 + (i * 100);
+        
+        const unit = new Unit(`e${i+1}`, `${roleName} ${i+1}`, roleName.toUpperCase(), 
+                             game.playerId === 'player2' ? 'player' : 'enemy', x, y, 100, 3);
+        unit.role = roleName;
+        unit.letter = role.letter;
+        unit.color = role.color;
+        unit.abilities = game.getAbilitiesForRole(roleName);
+        unit.row = role.row;
+        unit.resetMods();
+        game.units.push(unit);
+    });
+    
+    game.render();
+    game.updateUI();
+    syncGameState();
+}
+
+function syncGameState() {
+    if(!game.isMultiplayer) return;
+    
+    // Listen for opponent actions
+    game.roomRef.child(`${game.opponentId}/actions`).on('value', (snapshot) => {
+        const opponentActions = snapshot.val();
+        if(opponentActions && game.phase === 0) {
+            // Opponent submitted their actions
+        }
+    });
+}
+
+        function showTeamBuilder() {
+            document.getElementById('menuOverlay').classList.add('hidden');
+            document.getElementById('teamBuilder').classList.remove('hidden');
+            renderRoleSelection();
+        }
+
+        function renderRoleSelection() {
+            const grid = document.getElementById('roleGrid');
+            grid.innerHTML = '';
+            
+            Object.keys(ROLES).forEach(roleName => {
+                const role = ROLES[roleName];
+                const isSelected = game.selectedRoles.includes(roleName);
+                const canSelect = game.selectedRoles.length < 3 || isSelected;
+                
+                const card = document.createElement('div');
+                card.className = `glass p-6 rounded-xl border-2 cursor-pointer transition-all ${
+                    isSelected ? 'border-indigo-500 bg-indigo-500/20 scale-105' : 
+                    canSelect ? 'border-white/10 hover:border-white/30' : 'border-white/5 opacity-30'
+                }`;
+                card.style.pointerEvents = canSelect ? 'auto' : 'none';
+                
+               card.innerHTML = `
+                    <div class="text-5xl mb-3 text-center" style="color: ${role.color}; filter: drop-shadow(0 0 8px ${role.color});">${role.letter}</div>
+                    <div class="text-xl font-bold mb-2 text-center">${roleName}</div>
+                    <div class="text-xs text-slate-400 text-center leading-relaxed mb-2">${role.desc}</div>
+                    ${isSelected ? '<div class="text-[10px] mono text-indigo-400 text-center">✓ SELECTED</div>' : ''}
+                `;
+                
+                card.onclick = () => toggleRoleSelection(roleName);
+                grid.appendChild(card);
+            });
+        }
+
+        function toggleRoleSelection(roleName) {
+            const idx = game.selectedRoles.indexOf(roleName);
+            if (idx > -1) {
+                game.selectedRoles.splice(idx, 1);
+            } else if (game.selectedRoles.length < 3) {
+                game.selectedRoles.push(roleName);
+                Sound.play('click');
+            }
+            
+            updateSquadDisplay();
+            renderRoleSelection();
+        }
+
+        function updateSquadDisplay() {
+            const squadDiv = document.getElementById('selectedSquad');
+            const countSpan = document.getElementById('squadCount');
+            const startBtn = document.getElementById('startBattleBtn');
+            
+            countSpan.textContent = `(${game.selectedRoles.length}/3)`;
+            
+            if (game.selectedRoles.length === 0) {
+                squadDiv.innerHTML = '<div class="text-slate-600 text-sm">No units selected</div>';
+                startBtn.disabled = true;
+                startBtn.style.pointerEvents = 'none';
+                startBtn.classList.add('opacity-50');
+            } else {
+                squadDiv.innerHTML = '';
+                game.selectedRoles.forEach((roleName, i) => {
+                    const role = ROLES[roleName];
+                    const unit = document.createElement('div');
+                    unit.className = 'glass p-6 rounded-xl border-2 border-indigo-500/50 flex flex-col items-center gap-3 w-40 hover:scale-105 transition-transform';
+                    unit.innerHTML = `
+                        <div class="text-5xl" style="color: ${role.color}">${role.letter}</div>
+                        <div class="text-base font-bold">${roleName}</div>
+                        <div class="text-xs text-slate-400 text-center leading-tight">${role.desc.split('.')[0]}</div>
+                        <div class="text-xs mono text-slate-500">Unit ${i + 1}</div>
+                                    <div class="text-[9px] ${unit.row === 'front' ? 'text-orange-400' : 'text-blue-400'}">
+                                        ${unit.row === 'front' ? '⚔️ FRONT' : '🛡️ BACK'}
+                                    </div>
+                    `;
+                    squadDiv.appendChild(unit);
+                });
+                
+                if (game.selectedRoles.length === 3) {
+                    startBtn.disabled = false;
+                    startBtn.style.pointerEvents = 'auto';
+                    startBtn.classList.remove('opacity-50');
+                } else {
+                    startBtn.disabled = true;
+                    startBtn.style.pointerEvents = 'none';
+                    startBtn.classList.add('opacity-50');
+                }
+            }
+        }
+
+        function startGameWithTeam() {
+            if (game.selectedRoles.length !== 3) return;
+            
+            Sound.play('phase');
+            document.getElementById('teamBuilder').classList.add('opacity-0');
+            setTimeout(() => {
+                document.getElementById('teamBuilder').classList.add('hidden');
+                document.getElementById('gameUI').classList.remove('hidden');
+                game.init();
+            }, 500);
+        }
+
+        function startGame() {
+            // Legacy function - redirects to team builder
+            showTeamBuilder();
+        }
+    </script>
+</body>
+</html>
